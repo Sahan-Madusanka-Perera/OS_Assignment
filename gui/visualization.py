@@ -65,17 +65,33 @@ class VisualizationWidget(QWidget):
 
     def display_chart(self, results):
         self.canvas.figure.clear()
-        ax = self.canvas.figure.add_subplot(111)
+        ax1 = self.canvas.figure.add_subplot(121)
+        ax2 = self.canvas.figure.add_subplot(122)
         
         metrics = ['Page Faults', 'Hits']
         values = [results['page_faults'], results['hits']]
         colors = ['#ff6b6b', '#51cf66']
         
-        ax.bar(metrics, values, color=colors)
-        ax.set_ylabel('Count')
-        ax.set_title(f"{results['algorithm']} - Hit Ratio: {results['hit_ratio']:.2%}")
-        ax.grid(axis='y', alpha=0.3)
+        ax1.bar(metrics, values, color=colors)
+        ax1.set_ylabel('Count')
+        ax1.set_title(f"{results['algorithm']} - Hit Ratio: {results['hit_ratio']:.2%}")
+        ax1.grid(axis='y', alpha=0.3)
         
+        if 'average_access_time' in results:
+            avg_time_ns = results['average_access_time']
+            perf = results['performance_metrics']
+            
+            ax2.text(0.5, 0.9, f"Average Access Time", ha='center', va='top', fontsize=10, weight='bold', transform=ax2.transAxes)
+            ax2.text(0.5, 0.75, f"{avg_time_ns:,.0f} ns", ha='center', va='top', fontsize=12, transform=ax2.transAxes)
+            ax2.text(0.5, 0.60, f"({avg_time_ns/1000:,.2f} µs)", ha='center', va='top', fontsize=9, transform=ax2.transAxes)
+            
+            ax2.text(0.5, 0.45, f"TLB: {perf['tlb_accesses']:,}", ha='center', va='top', fontsize=8, transform=ax2.transAxes)
+            ax2.text(0.5, 0.35, f"Disk: {perf['disk_accesses']:,}", ha='center', va='top', fontsize=8, transform=ax2.transAxes)
+            ax2.text(0.5, 0.25, f"Total: {perf['total_time_ms']:,.2f} ms", ha='center', va='top', fontsize=8, transform=ax2.transAxes)
+            
+            ax2.axis('off')
+        
+        self.canvas.figure.tight_layout()
         self.canvas.draw()
 
 

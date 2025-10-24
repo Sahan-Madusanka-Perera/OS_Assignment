@@ -1,5 +1,6 @@
 from simulator.tlb import TLB
 from simulator.working_set import WorkingSetTracker
+from simulator.performance_metrics import PerformanceMetrics
 
 class VMSimulator:
     def __init__(self, reference_string, num_frames, algorithm, use_tlb=True, tlb_size=4):
@@ -10,6 +11,7 @@ class VMSimulator:
         self.use_tlb = use_tlb
         self.tlb = TLB(tlb_size) if use_tlb else None
         self.working_set_tracker = WorkingSetTracker()
+        self.performance_metrics = PerformanceMetrics()
 
     def run(self):
         for i, page in enumerate(self.reference_string):
@@ -20,6 +22,7 @@ class VMSimulator:
                 if tlb_hit:
                     page_fault = False
                     self.algorithm.hits += 1
+                    self.performance_metrics.record_tlb_hit()
                 else:
                     old_frames = set(self.algorithm.get_frames())
                     page_fault = self.algorithm.access_page(page)
@@ -32,8 +35,17 @@ class VMSimulator:
                     if page in self.algorithm.get_frames():
                         frame_index = self.algorithm.get_frames().index(page)
                         self.tlb.update(page, frame_index)
+                    
+                    if page_fault:
+                        self.performance_metrics.record_page_fault()
+                    else:
+                        self.performance_metrics.record_tlb_miss_memory_hit()
             else:
                 page_fault = self.algorithm.access_page(page)
+                if page_fault:
+                    self.performance_metrics.record_page_fault()
+                else:
+                    self.performance_metrics.record_tlb_miss_memory_hit()
             
             self.working_set_tracker.record_access(page, page_fault)
             
@@ -63,5 +75,7 @@ class VMSimulator:
             results['tlb_stats'] = self.tlb.get_stats()
         
         results['working_set_stats'] = self.working_set_tracker.get_statistics()
+        results['performance_metrics'] = self.performance_metrics.get_effective_access_time()
+        results['average_access_time'] = self.performance_metrics.get_average_access_time(total_accesses)
         
         return results

@@ -189,3 +189,55 @@ class ClockAlgorithm(Algorithm):
         return "Clock"
 
 
+class LFUAlgorithm(Algorithm):
+    """Least Frequently Used: replaces page with lowest access frequency"""
+    
+    def __init__(self, num_frames: int):
+        super().__init__(num_frames)
+        self.frames = {}
+        self.frequency = {}
+        self.time = 0
+    
+    def access_page(self, page: int) -> bool:
+        self.time += 1
+        
+        if page in self.frames:
+            self.frequency[page] += 1
+            self.hits += 1
+            return False
+        
+        self.page_faults += 1
+        
+        if len(self.frames) < self.num_frames:
+            self.frames[page] = self.time
+            self.frequency[page] = 1
+        else:
+            min_freq = min(self.frequency.values())
+            lfu_candidates = [p for p, f in self.frequency.items() if f == min_freq]
+            
+            if len(lfu_candidates) == 1:
+                victim = lfu_candidates[0]
+            else:
+                victim = min(lfu_candidates, key=lambda p: self.frames[p])
+            
+            del self.frames[victim]
+            del self.frequency[victim]
+            self.frames[page] = self.time
+            self.frequency[page] = 1
+        
+        return True
+    
+    def get_frames(self) -> List[int]:
+        return list(self.frames.keys())
+    
+    def reset(self):
+        self.frames.clear()
+        self.frequency.clear()
+        self.page_faults = 0
+        self.hits = 0
+        self.time = 0
+    
+    def get_name(self) -> str:
+        return "LFU"
+
+

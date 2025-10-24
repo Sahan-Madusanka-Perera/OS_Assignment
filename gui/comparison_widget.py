@@ -1,10 +1,12 @@
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTableWidget, 
                              QTableWidgetItem, QLabel, QPushButton, QGroupBox)
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QColor
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
-from simulator.algorithms import FIFOAlgorithm, LRUAlgorithm, OptimalAlgorithm, ClockAlgorithm
+from simulator.algorithms import FIFOAlgorithm, LRUAlgorithm, OptimalAlgorithm, ClockAlgorithm, LFUAlgorithm
 from simulator.simulator import VMSimulator
+from utils.statistics import Statistics
 
 class ComparisonWidget(QWidget):
     """Widget to compare all algorithms side-by-side"""
@@ -19,6 +21,11 @@ class ComparisonWidget(QWidget):
         title = QLabel("Algorithm Comparison")
         title.setStyleSheet("font-size: 18px; font-weight: bold;")
         layout.addWidget(title)
+        
+        self.recommendation_label = QLabel()
+        self.recommendation_label.setStyleSheet("font-size: 13px; font-weight: bold; padding: 12px; background-color: #d4edda; border: 2px solid #28a745; border-radius: 5px; color: #155724;")
+        self.recommendation_label.setWordWrap(True)
+        layout.addWidget(self.recommendation_label)
         
         self.results_table = QTableWidget()
         layout.addWidget(self.results_table)
@@ -38,6 +45,7 @@ class ComparisonWidget(QWidget):
         algorithms = [
             ('FIFO', FIFOAlgorithm),
             ('LRU', LRUAlgorithm),
+            ('LFU', LFUAlgorithm),
             ('Optimal', OptimalAlgorithm),
             ('Clock', ClockAlgorithm)
         ]
@@ -52,30 +60,76 @@ class ComparisonWidget(QWidget):
             result = simulator.run()
             results.append((name, result))
         
-        self.display_results_table(results)
+        rankings = Statistics.rank_algorithms(results)
+        recommendation = Statistics.get_recommendation(rankings)
+        self.recommendation_label.setText(f"Recommendation: {recommendation}")
+        
+        self.display_results_table(results, rankings)
         self.display_charts(results)
+        return results
     
-    def display_results_table(self, results):
+    def display_results_table(self, results, rankings):
         """Display comparison table"""
-        headers = ['Algorithm', 'Page Faults', 'Hits', 'Hit Ratio', 'Fault Ratio']
+        headers = ['Rank', 'Algorithm', 'Efficiency', 'Page Faults', 'Hits', 'Hit Ratio', 'Fault Ratio']
         if results and 'tlb_stats' in results[0][1]:
             headers.extend(['TLB Hits', 'TLB Hit Ratio'])
+        headers.append('Avg Access (µs)')
         
         self.results_table.setRowCount(len(results))
         self.results_table.setColumnCount(len(headers))
         self.results_table.setHorizontalHeaderLabels(headers)
         
+        rank_map = {r['algorithm']: r for r in rankings}
+        
         for i, (name, result) in enumerate(results):
-            self.results_table.setItem(i, 0, QTableWidgetItem(name))
-            self.results_table.setItem(i, 1, QTableWidgetItem(str(result['page_faults'])))
-            self.results_table.setItem(i, 2, QTableWidgetItem(str(result['hits'])))
-            self.results_table.setItem(i, 3, QTableWidgetItem(f"{result['hit_ratio']:.2%}"))
-            self.results_table.setItem(i, 4, QTableWidgetItem(f"{result['fault_ratio']:.2%}"))
+            rank_info = rank_map.get(name, {})
+            col = 0
+            
+            rank_item = QTableWidgetItem(str(rank_info.get('rank', '-')))
+            rank_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.results_table.setItem(i, col, rank_item)
+            col += 1
+            
+            self.results_table.setItem(i, col, QTableWidgetItem(name))
+            col += 1
+            
+            efficiency = rank_info.get('efficiency_score', 0)
+            eff_item = QTableWidgetItem(f"{efficiency:.1f}")
+            eff_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            if efficiency >= 80:
+                eff_item.setBackground(QColor(144, 238, 144))
+                eff_item.setForeground(QColor(0, 0, 0))
+            elif efficiency >= 60:
+                eff_item.setBackground(QColor(255, 255, 153))
+                eff_item.setForeground(QColor(0, 0, 0))
+            elif efficiency >= 40:
+                eff_item.setBackground(QColor(255, 200, 124))
+                eff_item.setForeground(QColor(0, 0, 0))
+            else:
+                eff_item.setBackground(QColor(255, 182, 193))
+                eff_item.setForeground(QColor(0, 0, 0))
+            self.results_table.setItem(i, col, eff_item)
+            col += 1
+            
+            self.results_table.setItem(i, col, QTableWidgetItem(str(result['page_faults'])))
+            col += 1
+            self.results_table.setItem(i, col, QTableWidgetItem(str(result['hits'])))
+            col += 1
+            self.results_table.setItem(i, col, QTableWidgetItem(f"{result['hit_ratio']:.2%}"))
+            col += 1
+            self.results_table.setItem(i, col, QTableWidgetItem(f"{result['fault_ratio']:.2%}"))
+            col += 1
             
             if 'tlb_stats' in result:
                 tlb = result['tlb_stats']
-                self.results_table.setItem(i, 5, QTableWidgetItem(str(tlb['hits'])))
-                self.results_table.setItem(i, 6, QTableWidgetItem(f"{tlb['hit_ratio']:.2%}"))
+                self.results_table.setItem(i, col, QTableWidgetItem(str(tlb['hits'])))
+                col += 1
+                self.results_table.setItem(i, col, QTableWidgetItem(f"{tlb['hit_ratio']:.2%}"))
+                col += 1
+            
+            if 'average_access_time' in result:
+                avg_time_us = result['average_access_time'] / 1000
+                self.results_table.setItem(i, col, QTableWidgetItem(f"{avg_time_us:.2f}"))
         
         self.results_table.resizeColumnsToContents()
         
@@ -83,7 +137,8 @@ class ComparisonWidget(QWidget):
         for col in range(self.results_table.columnCount()):
             item = self.results_table.item(best_idx, col)
             if item:
-                item.setBackground(Qt.GlobalColor.lightGray)
+                item.setBackground(QColor(220, 220, 220))
+                item.setForeground(QColor(0, 0, 0))
     
     def display_charts(self, results):
         """Display comparison charts"""
@@ -113,18 +168,32 @@ class ComparisonWidget(QWidget):
         self.performance_canvas.figure.clear()
         ax2 = self.performance_canvas.figure.add_subplot(111)
         
-        hit_ratios = [r[1]['hit_ratio'] * 100 for r in results]
-        colors = ['#4ecdc4', '#45b7d1', '#96ceb4', '#ffeaa7']
-        
-        bars = ax2.bar(names, hit_ratios, color=colors)
-        ax2.set_ylabel('Hit Ratio (%)')
-        ax2.set_title('Algorithm Performance')
-        ax2.set_ylim(0, 100)
-        ax2.grid(axis='y', alpha=0.3)
-        
-        for bar, ratio in zip(bars, hit_ratios):
-            height = bar.get_height()
-            ax2.text(bar.get_x() + bar.get_width()/2., height,
-                    f'{ratio:.1f}%', ha='center', va='bottom')
+        if results and 'average_access_time' in results[0][1]:
+            access_times = [r[1]['average_access_time'] / 1000 for r in results]
+            colors = ['#4ecdc4', '#45b7d1', '#96ceb4', '#ffeaa7', '#ff9ff3']
+            
+            bars = ax2.bar(names, access_times, color=colors)
+            ax2.set_ylabel('Average Access Time (µs)')
+            ax2.set_title('Memory Access Performance')
+            ax2.grid(axis='y', alpha=0.3)
+            
+            for bar, time_us in zip(bars, access_times):
+                height = bar.get_height()
+                ax2.text(bar.get_x() + bar.get_width()/2., height,
+                        f'{time_us:.1f}', ha='center', va='bottom', fontsize=8)
+        else:
+            hit_ratios = [r[1]['hit_ratio'] * 100 for r in results]
+            colors = ['#4ecdc4', '#45b7d1', '#96ceb4', '#ffeaa7', '#ff9ff3']
+            
+            bars = ax2.bar(names, hit_ratios, color=colors)
+            ax2.set_ylabel('Hit Ratio (%)')
+            ax2.set_title('Algorithm Performance')
+            ax2.set_ylim(0, 100)
+            ax2.grid(axis='y', alpha=0.3)
+            
+            for bar, ratio in zip(bars, hit_ratios):
+                height = bar.get_height()
+                ax2.text(bar.get_x() + bar.get_width()/2., height,
+                        f'{ratio:.1f}%', ha='center', va='bottom')
         
         self.performance_canvas.draw()

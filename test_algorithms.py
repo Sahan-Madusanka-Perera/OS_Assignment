@@ -1,7 +1,7 @@
 """
-Test script to verify page replacement algorithms with TLB and working set tracking
+Test script for page replacement algorithms with TLB and working set tracking
 """
-from simulator.algorithms import FIFOAlgorithm, LRUAlgorithm, OptimalAlgorithm, ClockAlgorithm
+from simulator.algorithms import FIFOAlgorithm, LRUAlgorithm, LFUAlgorithm, OptimalAlgorithm, ClockAlgorithm
 from simulator.simulator import VMSimulator
 
 def test_algorithm(algorithm_class, name, num_frames, reference_string, use_tlb=True):
@@ -53,6 +53,7 @@ def main():
     algorithms = [
         (FIFOAlgorithm, "FIFO"),
         (LRUAlgorithm, "LRU"),
+        (LFUAlgorithm, "LFU"),
         (OptimalAlgorithm, "Optimal"),
         (ClockAlgorithm, "Clock")
     ]
@@ -61,11 +62,11 @@ def main():
         test_algorithm(algo_class, name, num_frames, reference_string, use_tlb=True)
     
     print("\n" + "="*70)
-    print("\nAnalysis:")
-    print("  - Optimal algorithm has the best performance (theoretical minimum)")
-    print("  - LRU and Clock perform similarly in practice")
-    print("  - TLB significantly reduces memory access time")
-    print("  - Working set > frames indicates potential thrashing")
+    print("\nKey Findings:")
+    print("  Optimal algorithm provides theoretical minimum page faults")
+    print("  LFU and LRU offer practical performance improvements over FIFO")
+    print("  TLB caching significantly reduces memory access latency")
+    print("  Working set exceeding frame count indicates potential thrashing")
     print("="*70)
 
 if __name__ == "__main__":
