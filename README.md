@@ -164,11 +164,6 @@ This simulator demonstrates:
 - Working set model and thrashing phenomenon
 - Trade-offs between algorithm complexity and performance
 
-Perfect for:
-- Operating Systems courses
-- Computer Architecture studies
-- Performance analysis education
-- Algorithm comparison research
 
 ## License
 
