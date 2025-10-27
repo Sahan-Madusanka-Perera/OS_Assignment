@@ -6,8 +6,11 @@ from gui.comparison_widget import ComparisonWidget
 from gui.tlb_widget import TLBVisualizationWidget
 from gui.working_set_widget import WorkingSetWidget
 from gui.memory_animator import MemoryAnimator
+from gui.ml_prediction_widget import MLPredictionWidget
+from gui.benchmark_widget import BenchmarkWidget
 from simulator.algorithms import FIFOAlgorithm, LRUAlgorithm, OptimalAlgorithm, ClockAlgorithm, LFUAlgorithm
 from simulator.simulator import VMSimulator
+from simulator.ml_predictor import PredictiveAlgorithm
 from utils.exporter import ResultsExporter
 
 class MainWindow(QMainWindow):
@@ -52,6 +55,12 @@ class MainWindow(QMainWindow):
         self.tlb_checkbox = QCheckBox("Enable TLB")
         self.tlb_checkbox.setChecked(True)
         options_layout.addWidget(self.tlb_checkbox)
+        
+        self.ml_checkbox = QCheckBox("Enable ML Prediction")
+        self.ml_checkbox.setChecked(False)
+        self.ml_checkbox.setStyleSheet("color: #9c27b0; font-weight: bold;")
+        options_layout.addWidget(self.ml_checkbox)
+        
         options_layout.addStretch()
         
         input_layout.addLayout(options_layout)
@@ -88,6 +97,12 @@ class MainWindow(QMainWindow):
         self.comparison_widget = ComparisonWidget()
         self.tabs.addTab(self.comparison_widget, "Algorithm Comparison")
         
+        self.benchmark_widget = BenchmarkWidget()
+        self.tabs.addTab(self.benchmark_widget, "📊 Benchmarks")
+        
+        self.ml_widget = MLPredictionWidget()
+        self.tabs.addTab(self.ml_widget, "🤖 ML Prediction")
+        
         self.tlb_widget = TLBVisualizationWidget()
         self.tabs.addTab(self.tlb_widget, "TLB Analysis")
         
@@ -112,6 +127,7 @@ class MainWindow(QMainWindow):
             algo_name = self.algo_combo.currentText()
             use_tlb = self.tlb_checkbox.isChecked()
             tlb_size = self.tlb_size_spinbox.value()
+            use_ml = self.ml_checkbox.isChecked()
             
             algorithm_map = {
                 'FIFO': FIFOAlgorithm(num_frames),
@@ -126,12 +142,33 @@ class MainWindow(QMainWindow):
             if algo_name == 'Optimal':
                 algorithm.set_reference_string(reference_string)
             
-            simulator = VMSimulator(reference_string, num_frames, algorithm, 
-                                   use_tlb=use_tlb, tlb_size=tlb_size)
-            results = simulator.run()
-            self.last_results = results
+            if use_ml:
+                base_algo = algorithm_map[algo_name]
+                if algo_name == 'Optimal':
+                    base_algo.set_reference_string(reference_string)
+                
+                base_simulator = VMSimulator(reference_string, num_frames, base_algo,
+                                           use_tlb=use_tlb, tlb_size=tlb_size)
+                base_results = base_simulator.run()
+                
+                ml_algorithm = PredictiveAlgorithm(algorithm_map[algo_name])
+                if algo_name == 'Optimal':
+                    ml_algorithm.base_algorithm.set_reference_string(reference_string)
+                
+                simulator = VMSimulator(reference_string, num_frames, ml_algorithm,
+                                      use_tlb=use_tlb, tlb_size=tlb_size)
+                results = simulator.run()
+                results['ml_prediction_stats'] = ml_algorithm.get_prediction_stats()
+                
+                self.ml_widget.display_ml_comparison(base_results, results)
+                self.tabs.setCurrentIndex(2)
+            else:
+                simulator = VMSimulator(reference_string, num_frames, algorithm, 
+                                       use_tlb=use_tlb, tlb_size=tlb_size)
+                results = simulator.run()
+                self.tabs.setCurrentIndex(0)
             
-            self.tabs.setCurrentIndex(0)
+            self.last_results = results
             self.results_widget.display_results(results)
             
             self.animator_widget.load_results(results)
