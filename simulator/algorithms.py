@@ -23,6 +23,10 @@ class Algorithm(ABC):
     def get_name(self) -> str:
         pass
 
+    def prefetch_page(self, page: int) -> bool:
+        """Prefetch a page without affecting hit/fault counters."""
+        raise NotImplementedError
+
 class FIFOAlgorithm(Algorithm):
     def __init__(self, num_frames: int):
         super().__init__(num_frames)
@@ -53,6 +57,16 @@ class FIFOAlgorithm(Algorithm):
 
     def get_name(self) -> str:
         return "FIFO"
+
+    def prefetch_page(self, page: int) -> bool:
+        if page in self.frames:
+            return False
+        if len(self.frames) < self.num_frames:
+            self.frames.append(page)
+        else:
+            self.frames.popleft()
+            self.frames.append(page)
+        return True
     
 class LRUAlgorithm(Algorithm):
     def __init__(self, num_frames: int):
@@ -90,6 +104,18 @@ class LRUAlgorithm(Algorithm):
 
     def get_name(self) -> str:
         return "LRU"
+
+    def prefetch_page(self, page: int) -> bool:
+        if page in self.frames:
+            return False
+        self.time += 1
+        if len(self.frames) < self.num_frames:
+            self.frames[page] = self.time
+        else:
+            lru_page = min(self.frames, key=self.frames.get)
+            del self.frames[lru_page]
+            self.frames[page] = self.time
+        return True
 
 
 class OptimalAlgorithm(Algorithm):
@@ -144,6 +170,26 @@ class OptimalAlgorithm(Algorithm):
     def get_name(self) -> str:
         return "Optimal"
 
+    def prefetch_page(self, page: int) -> bool:
+        if page in self.frames:
+            return False
+        if len(self.frames) < self.num_frames:
+            self.frames.append(page)
+            return True
+        farthest_use = -1
+        victim_index = 0
+        for i, frame_page in enumerate(self.frames):
+            try:
+                next_use = self.reference_string[self.current_index + 1:].index(frame_page)
+            except ValueError:
+                victim_index = i
+                break
+            if next_use > farthest_use:
+                farthest_use = next_use
+                victim_index = i
+        self.frames[victim_index] = page
+        return True
+
 
 class ClockAlgorithm(Algorithm):
     def __init__(self, num_frames: int):
@@ -187,6 +233,21 @@ class ClockAlgorithm(Algorithm):
 
     def get_name(self) -> str:
         return "Clock"
+
+    def prefetch_page(self, page: int) -> bool:
+        if page in self.frames:
+            return False
+        if len(self.frames) < self.num_frames:
+            self.frames.append(page)
+            self.use_bits.append(1)
+            return True
+        while self.use_bits[self.hand] == 1:
+            self.use_bits[self.hand] = 0
+            self.hand = (self.hand + 1) % self.num_frames
+        self.frames[self.hand] = page
+        self.use_bits[self.hand] = 1
+        self.hand = (self.hand + 1) % self.num_frames
+        return True
 
 
 class LFUAlgorithm(Algorithm):
@@ -240,4 +301,23 @@ class LFUAlgorithm(Algorithm):
     def get_name(self) -> str:
         return "LFU"
 
+    def prefetch_page(self, page: int) -> bool:
+        if page in self.frames:
+            return False
+        self.time += 1
+        if len(self.frames) < self.num_frames:
+            self.frames[page] = self.time
+            self.frequency[page] = 1
+            return True
+        min_freq = min(self.frequency.values())
+        lfu_candidates = [p for p, f in self.frequency.items() if f == min_freq]
+        if len(lfu_candidates) == 1:
+            victim = lfu_candidates[0]
+        else:
+            victim = min(lfu_candidates, key=lambda p: self.frames[p])
+        del self.frames[victim]
+        del self.frequency[victim]
+        self.frames[page] = self.time
+        self.frequency[page] = 1
+        return True
 

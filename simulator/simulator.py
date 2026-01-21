@@ -23,6 +23,8 @@ class VMSimulator:
                     page_fault = False
                     self.algorithm.hits += 1
                     self.performance_metrics.record_tlb_hit()
+                    if hasattr(self.algorithm, "observe_access"):
+                        self.algorithm.observe_access(page)
                 else:
                     old_frames = set(self.algorithm.get_frames())
                     page_fault = self.algorithm.access_page(page)
@@ -68,7 +70,8 @@ class VMSimulator:
             'hit_ratio': self.algorithm.hits / total_accesses if total_accesses > 0 else 0,
             'fault_ratio': self.algorithm.page_faults / total_accesses if total_accesses > 0 else 0,
             'history': self.history,
-            'algorithm': self.algorithm.get_name()
+            'algorithm': self.algorithm.get_name(),
+            'num_frames': self.num_frames
         }
         
         if self.use_tlb and self.tlb:

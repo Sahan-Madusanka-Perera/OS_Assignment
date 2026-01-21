@@ -1,0 +1,46 @@
+\documentclass[12pt]{article}
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage{enumitem}
+\setlength{\parskip}{1em}
+\setlength{\parindent}{0pt}
+
+\begin{document}
+
+\begin{center}
+    {\Large\textbf{Project Proposal: Intelligent Virtual Memory Simulator with ML-Based Page Prediction}}\\
+    {\normalsize Team: \textbf{Team 05}}
+\end{center}
+
+\textbf{1. Project Title}
+
+Intelligent Virtual Memory Simulator with ML-Based Page Prediction
+
+\textbf{2. Real-world Practical Problem}
+
+Operating systems must manage limited physical memory while supporting many concurrent and memory-intensive applications. Traditional page replacement algorithms (FIFO, LRU, LFU, Clock) are static and may perform poorly under complex, dynamic workloads such as database systems, multimedia streaming, and browser activity. High page-fault rates cause performance degradation and can lead to thrashing. The practical problem is to improve memory-management responsiveness and reduce page faults in the presence of realistic, variable workloads.
+
+\textbf{3. Solution or Idea}
+
+We will build a professional virtual memory simulator implementing classic page replacement algorithms and an ML-based page predictor using an N-gram / Markov-chain approach. The simulator will:
+\begin{itemize}[leftmargin=*,noitemsep]
+    \item Implement FIFO, LRU, LFU, Clock and Optimal replacement policies.
+    \item Include a predictive layer that learns access sequences and suggests candidate pages to retain or prefetch, using an adaptive confidence threshold.
+    \item Provide a benchmarking suite with realistic workloads (sequential, random, locality bursts, web-like patterns, streaming, database traces) to quantify gains.
+    \item Offer a GUI for visualisation, metrics (page faults, hit rates, effective access time), and exportable reports.
+\end{itemize}
+
+The goal is to demonstrate measurable reductions in page faults and improved hit rates versus baseline algorithms across representative workloads.
+
+\textbf{4. Course Topics Covered}
+
+\begin{itemize}[leftmargin=*,noitemsep]
+    \item Virtual Memory and Address Translation
+    \item Page Replacement Algorithms (FIFO, LRU, LFU, Clock, Optimal)
+    \item Thrashing and Working Set Theory
+    \item TLB Simulation and Impact on Performance
+    \item Performance Measurement and Benchmarking Methodology
+    \item Lightweight Machine Learning for Systems (N-gram / Markov models)
+    \item GUI Design and Data Visualization (PyQt6, matplotlib)
+\end{itemize}
+
+\end{document}

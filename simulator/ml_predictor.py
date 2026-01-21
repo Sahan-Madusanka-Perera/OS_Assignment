@@ -94,28 +94,68 @@ class PredictiveAlgorithm:
         self.prefetch_buffer = set()
         self.prefetch_hits = 0
         self.prefetch_misses = 0
+        self.prefetch_attempts = 0
+        self.prefetch_skips = 0
+        self._last_prediction = None
         
     def access_page(self, page: int) -> bool:
         """Access page with adaptive predictive prefetching"""
-        predicted, confidence = self.predictor.predict_next_page()
-        threshold = self.predictor.confidence_threshold
-        
-        if predicted is not None and confidence > threshold:
-            self.predictor.verify_prediction(predicted, page)
-            
-            if page in self.prefetch_buffer:
-                self.prefetch_hits += 1
-                self.prefetch_buffer.remove(page)
-                self.predictor.record_access(page)
-                return self.base_algorithm.access_page(page)
-        
+        if page in self.prefetch_buffer and page in self.base_algorithm.get_frames():
+            self.prefetch_hits += 1
+            self.prefetch_buffer.remove(page)
+        elif page in self.prefetch_buffer:
+            self.prefetch_buffer.remove(page)
+
+        if self._last_prediction is not None:
+            self.predictor.verify_prediction(self._last_prediction, page)
+            self._last_prediction = None
+
         self.predictor.record_access(page)
         page_fault = self.base_algorithm.access_page(page)
-        
+
+        predicted, confidence = self.predictor.predict_next_page()
+        threshold = self.predictor.confidence_threshold
         if predicted is not None and confidence > threshold:
-            self.prefetch_buffer.add(predicted)
-        
+            if predicted == page or predicted in self.base_algorithm.get_frames():
+                self.prefetch_skips += 1
+            else:
+                self.prefetch_attempts += 1
+                did_prefetch = self.base_algorithm.prefetch_page(predicted)
+                if did_prefetch:
+                    self.prefetch_buffer.add(predicted)
+                else:
+                    self.prefetch_misses += 1
+            self._last_prediction = predicted
+
         return page_fault
+
+    def observe_access(self, page: int):
+        """Observe an access without affecting base algorithm counters."""
+        if page in self.prefetch_buffer and page in self.base_algorithm.get_frames():
+            self.prefetch_hits += 1
+            self.prefetch_buffer.remove(page)
+        elif page in self.prefetch_buffer:
+            self.prefetch_buffer.remove(page)
+
+        if self._last_prediction is not None:
+            self.predictor.verify_prediction(self._last_prediction, page)
+            self._last_prediction = None
+
+        self.predictor.record_access(page)
+
+        predicted, confidence = self.predictor.predict_next_page()
+        threshold = self.predictor.confidence_threshold
+        if predicted is not None and confidence > threshold:
+            if predicted == page or predicted in self.base_algorithm.get_frames():
+                self.prefetch_skips += 1
+            else:
+                self.prefetch_attempts += 1
+                did_prefetch = self.base_algorithm.prefetch_page(predicted)
+                if did_prefetch:
+                    self.prefetch_buffer.add(predicted)
+                else:
+                    self.prefetch_misses += 1
+            self._last_prediction = predicted
     
     def get_frames(self):
         return self.base_algorithm.get_frames()
@@ -129,14 +169,18 @@ class PredictiveAlgorithm:
         self.prefetch_buffer.clear()
         self.prefetch_hits = 0
         self.prefetch_misses = 0
+        self.prefetch_attempts = 0
+        self.prefetch_skips = 0
     
     def get_prediction_stats(self) -> dict:
         """Get ML prediction statistics"""
         stats = self.predictor.get_statistics()
         stats['prefetch_hits'] = self.prefetch_hits
+        stats['prefetch_attempts'] = self.prefetch_attempts
+        stats['prefetch_skips'] = self.prefetch_skips
         stats['prefetch_effectiveness'] = (
-            (self.prefetch_hits / stats['total_predictions'] * 100)
-            if stats['total_predictions'] > 0 else 0
+            (self.prefetch_hits / self.prefetch_attempts * 100)
+            if self.prefetch_attempts > 0 else 0
         )
         return stats
     
